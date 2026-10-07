@@ -267,6 +267,7 @@ For a continuous worker, call `importer.start()`. `importer.add({ url, mode, bra
 | GET | `/api/imports/:id/files` | File mappings |
 | POST | `/api/imports/:id/sync` | Queue a sync or retry |
 | POST | `/api/imports/:id/detach` | Stop mirroring and enable local edits |
+| DELETE | `/api/imports/:id` | Remove the repository and permanently delete every wallpaper it imported, with all versions and unused image files |
 | GET | `/api/session` | Sign-in status, role, and enabled providers |
 | POST / DELETE | `/api/session` | Token sign-in `{ token }` / clear the token cookie |
 | POST | `/api/account/claim-admin` | Grant the signed-in account admin access using `{ token }` |
@@ -298,7 +299,7 @@ Import and sync requests return `202`; poll the status endpoint for progress. St
 
 **Consistent backups:** stop the server, copy the entire data directory or volume along with any secrets set through the environment, then restart it. Preserve the auth secret so stored provider tokens remain readable. Do not copy only the database or images separately while writes are in progress.
 
-Designed for a single host with local storage. S3 storage, cross-host databases, private per-user workspaces, Git push/pull/merge, garbage collection, and history deletion are not available yet. Files written before a failed transaction may remain unreferenced. This is a Git-style snapshot system, not a Git repository server.
+Designed for a single host with local storage. S3 storage, cross-host databases, private per-user workspaces, Git push/pull/merge, and garbage collection are not available yet. The only way history is deleted is removing an imported repository, which deletes that repository's wallpapers. Files written before a failed transaction may remain unreferenced. This is a Git-style snapshot system, not a Git repository server.
 
 Sign-in rate limits use the socket IP determined by the server, not client-supplied IP headers. Users behind a reverse proxy share the proxy's IP bucket; larger deployments can add trusted-proxy configuration before changing this policy.
 

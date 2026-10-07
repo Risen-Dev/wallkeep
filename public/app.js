@@ -170,7 +170,7 @@ function importCard(source) {
     ${source.lastCommit ? `<p class="hint">Last complete snapshot: <code>${esc(source.lastCommit.slice(0, 12))}</code></p>` : ''}
     ${source.mode === 'mirror' ? `<p class="hint">Checks every ${source.intervalMinutes} minutes while the server is running. Removed upstream images are archived; their history stays available.</p>` : '<p class="hint">Files live independently in Wallkeep. Future GitHub changes will not update a completed copy.</p>'}
     ${report.errors?.length ? `<details class="import-errors"><summary>${report.errors.length} issue${report.errors.length > 1 ? 's' : ''}${report.failed > report.errors.length ? ' (showing first 20)' : ''}</summary><ul>${report.errors.map(error => `<li>${error.path ? `<strong>${esc(error.path)}</strong><br>` : ''}${esc(error.error)}</li>`).join('')}</ul></details>` : ''}
-    <div class="card-actions">${source.mode === 'mirror' || source.status === 'error' || (source.status === 'partial' && !report.failedPaths?.length) ? `<button class="button secondary small" data-sync="${source.id}" ${active ? 'disabled' : ''}>${source.mode === 'mirror' ? 'Sync now' : 'Retry import'}</button>` : ''}${source.mode === 'mirror' ? `<button class="button secondary small" data-detach="${source.id}" ${active ? 'disabled' : ''}>Make independent</button>` : ''}${report.failedPaths?.length ? `<button class="button small" data-retry="${source.id}" ${active ? 'disabled' : ''}>Retry ${report.failedPaths.length} failed</button>` : ''}<button class="text-button" data-files="${source.id}">View imported files →</button></div><div class="import-files" id="files-${source.id}"></div></article>`;
+    <div class="card-actions">${source.mode === 'mirror' || source.status === 'error' || (source.status === 'partial' && !report.failedPaths?.length) ? `<button class="button secondary small" data-sync="${source.id}" ${active ? 'disabled' : ''}>${source.mode === 'mirror' ? 'Sync now' : 'Retry import'}</button>` : ''}${source.mode === 'mirror' ? `<button class="button secondary small" data-detach="${source.id}" ${active ? 'disabled' : ''}>Make independent</button>` : ''}${report.failedPaths?.length ? `<button class="button small" data-retry="${source.id}" ${active ? 'disabled' : ''}>Retry ${report.failedPaths.length} failed</button>` : ''}<button class="text-button" data-files="${source.id}">View imported files →</button><button class="text-button danger" data-remove-import="${source.id}" data-name="${esc(source.owner)}/${esc(source.repository)}" data-count="${source.fileCount}" ${active ? 'disabled' : ''}>Remove repository</button></div><div class="import-files" id="files-${source.id}"></div></article>`;
 }
 
 async function renderImports() {
@@ -233,7 +233,7 @@ $('#main').addEventListener('click', async event => {
     } catch (error) { notice(error.message); button.disabled = false; }
   }
   if (button.dataset.action === 'refresh-imports') await renderImports().catch(error => notice(error.message));
-  if (button.dataset.link || button.dataset.unlink || button.dataset.sync || button.dataset.retry || button.dataset.detach || button.dataset.files || ['signout', 'email-self'].includes(button.dataset.action)) {
+  if (button.dataset.link || button.dataset.unlink || button.dataset.sync || button.dataset.retry || button.dataset.detach || button.dataset.removeImport || button.dataset.files || ['signout', 'email-self'].includes(button.dataset.action)) {
     button.disabled = true;
     try {
       if (button.dataset.link) await social(button.dataset.link, true);
@@ -243,6 +243,10 @@ $('#main').addEventListener('click', async event => {
       }
       if (button.dataset.retry) { await api(`/imports/${button.dataset.retry}/retry`, { method: 'POST', body: {} }); await renderImports(); }
       if (button.dataset.sync) { await api(`/imports/${button.dataset.sync}/sync`, { method: 'POST', body: {} }); await renderImports(); }
+      if (button.dataset.removeImport && confirm(`Remove ${button.dataset.name} and permanently delete its ${button.dataset.count} imported wallpapers, including all their versions? This can’t be undone.`)) {
+        const result = await api(`/imports/${button.dataset.removeImport}`, { method: 'DELETE' });
+        await renderImports(); notice(`Removed ${result.repository} and ${result.removed} wallpapers.`);
+      }
       if (button.dataset.detach && confirm('Make this mirror independent? Automatic sync will stop and local editing will become available. Existing history will stay.')) {
         await api(`/imports/${button.dataset.detach}/detach`, { method: 'POST', body: {} });
         await renderImports(); notice('Mirror is now an independent copy.');

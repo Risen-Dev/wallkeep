@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -100,10 +100,25 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   assert.throws(() => store.queueImport(copy.id, { retry: true }), /independent copy|no failed files/);
   delete files['extra.png'];
   assert.equal(store.getImport(copy.id).status, 'synced');
+  // Removing a repository deletes its wallpapers, versions, and files no other wallpaper uses.
+  const kept = await store.create({ title: 'Local twin', image: imageA, filename: 'twin.png' });
+  const removedId = store.importedFiles(copy.id)[0].wallpaperId;
+  const removedHash = store.get(removedId).latest.hash;
+  const sharedPreviews = readdirSync(join(directory, 'previews')).length;
+  assert.deepEqual(store.removeImport(copy.id), { id: copy.id, repository: 'example/second', removed: 1 });
+  assert.throws(() => store.get(removedId), /not found/);
+  assert.throws(() => store.getImport(copy.id), /not found/i);
+  assert.equal(store.get(kept.id).latest.hash, removedHash, 'identical bytes stay for the local wallpaper');
+  assert.equal(readdirSync(join(directory, 'previews')).length, sharedPreviews);
+  assert.equal(store.removeImport(source.id).removed, 2, 'detached and archived wallpapers are removed too');
+  assert.equal(readdirSync(join(directory, 'previews')).length, sharedPreviews - 1, 'the image only that repository used is deleted');
+  assert.equal(readdirSync(join(directory, 'originals')).length, sharedPreviews - 1);
+  assert.throws(() => new DatabaseSync(join(directory, 'wallkeep.sqlite')).exec(`DELETE FROM versions WHERE wallpaper_id = '${kept.id}'`), /immutable/);
   const leaseSource = store.addImport({ owner: 'example', repository: 'lease', mode: 'mirror' });
   assert.equal(store.claimImport(leaseSource.id, 'first-worker'), true);
   assert.equal(store.claimImport(leaseSource.id, 'other-worker'), false);
   assert.throws(() => store.detachImport(leaseSource.id), /current sync/);
+  assert.throws(() => store.removeImport(leaseSource.id), /current sync/);
   const db = new DatabaseSync(join(directory, 'wallkeep.sqlite'));
   db.prepare('UPDATE import_sources SET lease_until = 0 WHERE id = ?').run(leaseSource.id);
   db.close();
@@ -226,4 +241,30 @@ test('email login, explicit multi-provider linking, ownership, admin access, and
   assert.equal((await request('/api/auth/unlink-account', { accountId: links.find(account => account.providerId === 'github').id })).status, 400);
   assert.equal((await request('/api/auth/sign-out', {})).status, 200);
   assert.equal((await (await request('/api/session')).json()).authenticated, false);
+});
+
+test('a stalled image download is aborted on shutdown and the import is re-queued', async t => {
+  const { store } = temporaryStore(t);
+  let downloading;
+  const started = new Promise(resolve => { downloading = resolve; });
+  const fetcher = async url => {
+    if (url.includes('raw.githubusercontent.com')) {
+      downloading();
+      // Sends one byte, then never finishes and ignores the fetch signal, like the stuck GitHub download.
+      return new Response(new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array([1])); } }));
+    }
+    if (/\/commits\//.test(url)) return Response.json({ sha: commit(1), commit: { tree: { sha: commit(9) } } });
+    if (/\/git\/trees\//.test(url)) return Response.json({ truncated: false, tree: [{ path: 'stuck.png', type: 'blob', mode: '100644', sha: gitHash(imageA), size: imageA.length }] });
+    return Response.json({ private: false, default_branch: 'main' });
+  };
+  const importer = new GitHubImporter({ store, fetcher });
+  const source = store.addImport({ owner: 'example', repository: 'stuck', mode: 'mirror' });
+  const run = importer.sync(source.id);
+  await started;
+  const stopped = Date.now();
+  await importer.stop();
+  const result = await run;
+  assert.ok(Date.now() - stopped < 2000, 'stop must not wait for the stalled download');
+  assert.equal(result.status, 'queued');
+  assert.equal(store.claimImport(source.id, 'next-start'), true, 'the lease was released');
 });

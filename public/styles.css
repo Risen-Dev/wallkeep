@@ -1131,3 +1131,6 @@ dialog select { display: block; width: 100%; margin-top: 8px; padding: 12px; bor
   padding-top:24px;
   border-top:1px solid #e3e8dc;
 }
+.text-button.danger {
+  color:#a54434;
+}

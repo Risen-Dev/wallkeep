@@ -1,0 +1,20 @@
+services:
+  wallkeep:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - wallkeep-data:/app/data
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_DIR: /app/data
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:3000}
+    restart: unless-stopped
+
+volumes:
+  wallkeep-data:

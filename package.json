@@ -1,0 +1,34 @@
+{
+  "name": "wallkeep",
+  "version": "0.1.0",
+  "description": "A self-hosted wallpaper gallery and Node.js library with immutable version history.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "exports": {
+    ".": "./lib/store.js",
+    "./server": "./lib/server.js",
+    "./github": "./lib/github.js",
+    "./accounts": "./lib/accounts.js"
+  },
+  "bin": {
+    "wallkeep": "./cli.js"
+  },
+  "files": [
+    "lib",
+    "public",
+    "cli.js",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node cli.js",
+    "dev": "node --watch cli.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-auth": "^1.7.7",
+    "nodemailer": "^10.0.15",
+    "sharp": "^0.35.5"
+  }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f4">
+  <title>Wallkeep — A place for every version</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Wallkeep home"><span class="brand-mark" aria-hidden="true">w.</span>wallkeep<span class="beta">ALPHA</span></a>
+    <nav aria-label="Main navigation"><a href="/">Library</a><a href="/imports">Imports</a><button class="text-button" id="about-button">How it works</button></nav>
+    <button class="button secondary small" id="account-button">Sign in <span aria-hidden="true">↗</span></button>
+  </header>
+  <main id="main" tabindex="-1"><p class="loading">Opening your library…</p></main>
+  <footer class="site-footer"><span><span class="status-dot"></span> Your files. Your server. Your history.</span><span>Made to be kept.</span></footer>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="login-dialog" aria-labelledby="login-title">
+    <div class="dialog-heading"><span class="eyebrow">YOUR SPACE</span><button type="button" class="icon-button" data-close aria-label="Close sign in">×</button></div>
+    <h2 id="login-title">Welcome back.</h2><p class="muted">One account. All your ways to sign in.</p>
+    <div id="social-signin" class="provider-buttons"></div>
+    <p class="hint" id="provider-hint"></p>
+    <form id="email-form">
+      <label>Email address<input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
+      <p class="hint">We’ll email a sign-in link. No password needed.</p>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit">Email me a sign-in link</button>
+    </form>
+    <details class="admin-fallback"><summary>Server admin token</summary><form id="login-form">
+      <label>Admin token<input type="password" name="token" required minlength="32" autocomplete="current-password" placeholder="Paste your server’s admin token"></label>
+      <p class="hint">Use the token saved in your server’s data directory.</p>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit">Sign in as admin <span aria-hidden="true">→</span></button>
+    </form></details>
+  </dialog>
+
+  <dialog id="import-dialog" class="upload-dialog" aria-labelledby="import-title">
+    <form id="import-form">
+      <div class="dialog-heading"><span class="eyebrow">BRING YOUR COLLECTION HOME</span><button type="button" class="icon-button" data-close aria-label="Close import">×</button></div>
+      <h2 id="import-title">Import from GitHub.</h2>
+      <label>Repository URL<input name="url" type="url" required placeholder="https://github.com/owner/wallpapers"></label>
+      <div class="form-columns"><label>Branch <span class="optional">optional</span><input name="branch" maxlength="200" placeholder="Default branch"></label><label>Folder <span class="optional">optional</span><input name="folder" maxlength="1000" placeholder="All folders"></label></div>
+      <fieldset class="import-modes"><legend>How should these images live here?</legend>
+        <label><input type="radio" name="mode" value="copy" checked><span><strong>Independent copy</strong><small>Import once. Edit freely in Wallkeep.</small></span></label>
+        <label><input type="radio" name="mode" value="mirror"><span><strong>Mirror GitHub</strong><small>Follow the branch automatically. Detach anytime to edit.</small></span></label>
+      </fieldset>
+      <label>Mirror check interval<select name="intervalMinutes"><option value="60">Every hour</option><option value="15">Every 15 minutes</option><option value="1440">Every day</option></select></label>
+      <p class="hint">Imports current JPEG, PNG, and WebP files from a public repository. Up to 500 images / 500 MiB per source. Git commit history is not imported.</p>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit">Start import <span aria-hidden="true">↗</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-title">
+    <form id="upload-form">
+      <div class="dialog-heading"><span class="eyebrow">MAKE ROOM FOR SOMETHING GOOD</span><button type="button" class="icon-button" data-close aria-label="Close upload">×</button></div>
+      <h2 id="upload-title">Add a wallpaper.</h2>
+      <label class="file-picker"><span class="file-icon" aria-hidden="true">↑</span><strong id="file-label">Choose an image</strong><span class="hint">JPEG, PNG, or WebP · up to 25 MiB / 40 MP</span><input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>
+      <img id="upload-preview" class="upload-preview" alt="Selected upload preview" hidden>
+      <label>Title<input name="title" maxlength="160" required placeholder="Give this wallpaper a name"></label>
+      <label>Description <span class="optional">optional</span><textarea name="description" rows="2" maxlength="5000" placeholder="A little context behind the image…"></textarea></label>
+      <label>Alt text<input name="alt" maxlength="500" placeholder="Describe the image for someone who can’t see it"></label>
+      <label>Change note<input name="message" maxlength="500" placeholder="What changed in this version?"></label>
+      <p class="hint" id="upload-hint">Your original file will be preserved. This becomes version 1.</p>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit" id="upload-submit">Add to library <span aria-hidden="true">↗</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="restore-dialog" aria-labelledby="restore-title">
+    <form id="restore-form">
+      <div class="dialog-heading"><span class="eyebrow">A FRESH START, SAME HISTORY</span><button type="button" class="icon-button" data-close aria-label="Cancel restore">×</button></div>
+      <h2 id="restore-title">Restore this version?</h2><p id="restore-description" class="muted"></p>
+      <label>Change note<input name="message" maxlength="500"></label>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit">Restore as a new version <span aria-hidden="true">↶</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="about-dialog" aria-labelledby="about-title">
+    <div class="dialog-heading"><span class="eyebrow">A SMALL HOME FOR YOUR WALLPAPERS</span><button class="icon-button" data-close aria-label="Close about">×</button></div>
+    <h2 id="about-title">Everything has a history.</h2>
+    <p class="muted">Keep a wallpaper’s original, its next edit, and everything after. Each version remembers the image, its details, and who added it.</p>
+    <ol class="about-steps"><li><strong>Add something you love.</strong><span>Upload an image to start its history.</span></li><li><strong>Give it a new chapter.</strong><span>Add a new image or update its details.</span></li><li><strong>Go back, without losing anything.</strong><span>Restore an older version as a new one.</span></li></ol>
+    <p class="hint">Wallkeep is self-hosted. Anyone with access to this site can browse and download; only the admin can make changes.</p>
+  </dialog>
+</body>
+</html>

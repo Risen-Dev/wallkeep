@@ -139,10 +139,11 @@ async function renderDetail(id) {
     ${v.number !== current.latest.number ? `<div class="old-version"><span>You’re viewing v${v.number}. The latest version is v${current.latest.number}.</span><a href="/wallpapers/${id}">View latest →</a></div>` : ''}
     <div class="detail-layout"><div><div class="image-stage"><img src="${imageUrl(id, v.number)}" alt="${esc(v.alt)}"></div><div class="image-caption"><span>${esc(v.alt || v.filename)}</span><span>${v.width} × ${v.height}</span></div>
       <section class="history"><div class="history-heading"><h2>Version history <span class="version-badge">${current.versionCount}</span></h2><p>Every chapter, right here.</p></div><ol class="timeline">${history.items.map(historyRow).join('')}</ol><button class="button secondary small" data-action="more-history" ${historyOffset >= history.total ? 'hidden' : ''}>Load older versions</button></section>
-    </div><aside class="detail-sidebar"><div class="sidebar-description"><h2>About this wallpaper</h2><p class="description">${esc(v.description || 'No description yet. Sometimes the image says it all.')}</p></div>
+    </div><aside class="detail-sidebar"><div class="sidebar-description"><h2>About this wallpaper${session.isAdmin && v.number === current.latest.number ? ' <button class="text-button" data-action="edit-description">Edit</button>' : ''}</h2><p class="description">${esc(v.description || 'No description yet. Sometimes the image says it all.')}</p></div>
       <dl class="properties"><div><dt>Resolution</dt><dd>${v.width} × ${v.height}</dd></div><div><dt>File size</dt><dd>${size(v.size)}</dd></div><div><dt>Format</dt><dd>${esc(v.mime.split('/')[1].toUpperCase())}</dd></div><div><dt>Added by</dt><dd>${esc(v.author)}</dd></div><div><dt>Version saved</dt><dd>${date(v.createdAt)}</dd></div><div><dt>First uploaded</dt><dd>${date(current.createdAt)}</dd></div><div><dt>File name</dt><dd>${esc(v.filename)}</dd></div></dl>
       <div class="change-note"><span class="eyebrow">VERSION ${v.number} NOTE</span><p>${esc(v.message || 'No change note.')}</p></div>
-    </aside></div>`;
+    </aside></div>
+    <nav class="detail-nav" aria-label="Wallpapers">${current.previous ? `<a class="button secondary" href="/wallpapers/${current.previous}" rel="prev">← Previous wallpaper</a>` : '<span></span>'}${current.next ? `<a class="button secondary" href="/wallpapers/${current.next}" rel="next">Next wallpaper →</a>` : ''}</nav>`;
 }
 
 async function renderAccount() {
@@ -169,7 +170,7 @@ function importCard(source) {
     ${source.lastCommit ? `<p class="hint">Last complete snapshot: <code>${esc(source.lastCommit.slice(0, 12))}</code></p>` : ''}
     ${source.mode === 'mirror' ? `<p class="hint">Checks every ${source.intervalMinutes} minutes while the server is running. Removed upstream images are archived; their history stays available.</p>` : '<p class="hint">Files live independently in Wallkeep. Future GitHub changes will not update a completed copy.</p>'}
     ${report.errors?.length ? `<details class="import-errors"><summary>${report.errors.length} issue${report.errors.length > 1 ? 's' : ''}${report.failed > report.errors.length ? ' (showing first 20)' : ''}</summary><ul>${report.errors.map(error => `<li>${error.path ? `<strong>${esc(error.path)}</strong><br>` : ''}${esc(error.error)}</li>`).join('')}</ul></details>` : ''}
-    <div class="card-actions">${source.mode === 'mirror' || ['partial', 'error'].includes(source.status) ? `<button class="button secondary small" data-sync="${source.id}" ${active ? 'disabled' : ''}>${source.mode === 'mirror' ? 'Sync now' : 'Retry import'}</button>` : ''}${source.mode === 'mirror' ? `<button class="button secondary small" data-detach="${source.id}" ${active ? 'disabled' : ''}>Make independent</button>` : ''}<button class="text-button" data-files="${source.id}">View imported files →</button></div><div class="import-files" id="files-${source.id}"></div></article>`;
+    <div class="card-actions">${source.mode === 'mirror' || source.status === 'error' || (source.status === 'partial' && !report.failedPaths?.length) ? `<button class="button secondary small" data-sync="${source.id}" ${active ? 'disabled' : ''}>${source.mode === 'mirror' ? 'Sync now' : 'Retry import'}</button>` : ''}${source.mode === 'mirror' ? `<button class="button secondary small" data-detach="${source.id}" ${active ? 'disabled' : ''}>Make independent</button>` : ''}${report.failedPaths?.length ? `<button class="button small" data-retry="${source.id}" ${active ? 'disabled' : ''}>Retry ${report.failedPaths.length} failed</button>` : ''}<button class="text-button" data-files="${source.id}">View imported files →</button></div><div class="import-files" id="files-${source.id}"></div></article>`;
 }
 
 async function renderImports() {
@@ -211,8 +212,13 @@ $('#main').addEventListener('click', async event => {
   if (button.dataset.action === 'upload') asAdmin(() => openUpload());
   if (button.dataset.action === 'import') asAdmin(() => { formError($('#import-form')); $('#import-dialog').showModal(); });
   if (button.dataset.action === 'signin-account') openLogin();
+  if (button.dataset.action === 'edit-description') {
+    $('.sidebar-description').innerHTML = `<form id="description-form"><h2><label for="description-input">About this wallpaper</label></h2><textarea id="description-input" name="description" rows="5" maxlength="5000" placeholder="A little context behind the image…">${esc(current.latest.description)}</textarea><p class="form-error" role="alert" hidden></p><div class="card-actions"><button class="button small" type="submit">Save</button><button class="button secondary small" type="button" data-action="cancel-description">Cancel</button></div></form>`;
+    $('#description-input').focus();
+  }
+  if (button.dataset.action === 'cancel-description') await render();
   if (button.dataset.action === 'refresh-imports') await renderImports().catch(error => notice(error.message));
-  if (button.dataset.link || button.dataset.unlink || button.dataset.sync || button.dataset.detach || button.dataset.files || ['signout', 'email-self'].includes(button.dataset.action)) {
+  if (button.dataset.link || button.dataset.unlink || button.dataset.sync || button.dataset.retry || button.dataset.detach || button.dataset.files || ['signout', 'email-self'].includes(button.dataset.action)) {
     button.disabled = true;
     try {
       if (button.dataset.link) await social(button.dataset.link, true);
@@ -220,6 +226,7 @@ $('#main').addEventListener('click', async event => {
         await api('/auth/unlink-account', { method: 'POST', body: { accountId: button.dataset.unlink } });
         await renderAccount(); notice('Provider disconnected.');
       }
+      if (button.dataset.retry) { await api(`/imports/${button.dataset.retry}/retry`, { method: 'POST', body: {} }); await renderImports(); }
       if (button.dataset.sync) { await api(`/imports/${button.dataset.sync}/sync`, { method: 'POST', body: {} }); await renderImports(); }
       if (button.dataset.detach && confirm('Make this mirror independent? Automatic sync will stop and local editing will become available. Existing history will stay.')) {
         await api(`/imports/${button.dataset.detach}/detach`, { method: 'POST', body: {} });
@@ -321,6 +328,24 @@ $('#main').addEventListener('submit', async event => {
     session = await api('/session'); accountLabel(); await renderAccount(); notice('This account now has admin access.');
   } catch (error) { formError(form, error.message); }
   finally { busy(form, false); }
+});
+
+// Arrow keys step through wallpapers on the detail page, unless typing or a dialog is open.
+document.addEventListener('keydown', event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('dialog[open]')) return;
+  const link = { ArrowLeft: 'a[rel=prev]', ArrowRight: 'a[rel=next]' }[event.key];
+  if (link && $(link)) location.assign($(link).href);
+});
+
+$('#main').addEventListener('submit', async event => {
+  if (event.target.id !== 'description-form') return;
+  event.preventDefault();
+  const form = event.target;
+  busy(form, true); formError(form);
+  try {
+    const item = await api(`/wallpapers/${current.id}/description`, { method: 'POST', body: { expectedVersion: current.latest.number, description: form.elements.description.value } });
+    goToWallpaper(item, `Description saved as v${item.latest.number}.`);
+  } catch (error) { formError(form, error.message); busy(form, false); }
 });
 
 $('#login-form').addEventListener('submit', async event => {

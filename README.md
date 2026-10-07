@@ -83,11 +83,11 @@ https://github.com/owner/wallpapers/tree/main/nature
 ### Import limits
 
 - **Public repositories on github.com**, including folders within them. Private repositories and GitHub Enterprise are not supported; the gallery is public.
-- Static JPEG, PNG, and WebP images; up to 25 MiB and 40 megapixels per image.
-- Up to **500 images / 500 MiB** per source/snapshot. Split large repositories into separate folder imports.
+- Static JPEG, PNG, and WebP images; up to 25 MiB and 100 megapixels per image.
+- No Wallkeep limit on the total image count or combined image size per source/snapshot. Images are processed one at a time; available disk space and GitHub API limits still apply. GitHub must return a complete tree listing before an import can proceed.
 - Symlinks and submodules are not downloaded, Git LFS pointers are not resolved, and repository code is never executed.
 - **Imports the current snapshot, not the entire Git commit history.** Later changes observed during sync become Wallkeep history. A renamed path is treated as a new image; the old path is archived in mirror mode.
-- Imports run one at a time, with a 10-minute limit per sync. The worker uses a database lease; interrupted jobs can resume after the lease expires, which takes up to 15 minutes.
+- Imports run one at a time without a total sync time limit. Individual network requests time out after 30 seconds. The worker renews its database lease as it processes files; interrupted jobs can resume after the lease expires, up to 15 minutes after the last renewal.
 - All downloads are pinned to a commit SHA. Original bytes are checked against the Git blob hash. Downloads are restricted to GitHub API/raw hosts, and redirects are not followed.
 
 `GITHUB_IMPORT_TOKEN` is sent only to the GitHub API; it is not an account sign-in token and is never sent to the browser. Imports also work without a token while the unauthenticated GitHub quota is available.
@@ -306,6 +306,7 @@ Tests use `node:test`, temporary SQLite databases, local servers, image fixtures
 
 - immutable snapshots, restore, deduplication, persistence, concurrent-write conflicts, and image validation;
 - idempotent mirrors, file changes, archiving and reappearance, listing failures, retries, leases, and detachment;
+- imports of 501 images totaling 501 MiB, lease renewal during simulated long-running imports, and skipping unchanged downloads;
 - URL validation, download hosts, and Git blob integrity;
 - single-use magic links, explicit account linking, different provider emails on one account, provider ownership protection, admin access, and logout.
 

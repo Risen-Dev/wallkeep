@@ -1111,3 +1111,23 @@ dialog select { display: block; width: 100%; margin-top: 8px; padding: 12px; bor
   .import-card-heading { flex-direction: column; }
   .card-actions .button { white-space: normal; }
 }
+#description-form textarea {
+  display:block;
+  width:100%;
+  padding:11px 12px;
+  border:1px solid #d6dfce;
+  background:white;
+  color:#263b30;
+  font-size:12px;
+  line-height:1.5;
+  resize:vertical;
+  margin-bottom:12px;
+}
+.detail-nav {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:48px;
+  padding-top:24px;
+  border-top:1px solid #e3e8dc;
+}

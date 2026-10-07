@@ -35,7 +35,10 @@ const importer = new GitHubImporter({ store, token: process.env.GITHUB_IMPORT_TO
 const server = createWallpaperServer({ store, adminToken, adminName: process.env.ADMIN_NAME || 'Admin', publicUrl, accounts, importer });
 server.on('error', async error => { console.error(error.message); await importer.stop(); accounts.close(); store.close(); process.exitCode = 1; });
 server.listen(port, host, () => { importer.start(); console.log(`Wallkeep is running at ${publicUrl}`); });
-for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
-  server.close(async () => { await importer.stop(); accounts.close(); store.close(); process.exit(0); });
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
   setTimeout(() => process.exit(1), 10_000).unref();
+  // Stop the importer first so an interrupted sync releases its lease; keep-alive browser polling would otherwise stall server.close.
+  await importer.stop();
+  server.close(() => { accounts.close(); store.close(); process.exit(0); });
+  server.closeAllConnections();
 });

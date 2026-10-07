@@ -72,11 +72,14 @@ test('stale writes and invalid input leave existing history intact', async t => 
   await assert.rejects(store.create({ ...input, image: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>') }), /Invalid image/);
   await assert.rejects(store.create({ ...input, image: fixture.subarray(0, 40) }), /Invalid image/);
   await assert.rejects(store.create({ ...input, image: Buffer.alloc(25 * 1024 * 1024 + 1) }), /25 MiB/);
-  const huge = await sharp({ create: { width: 6500, height: 6200, channels: 3, background: 'white' } }).png().toBuffer();
-  await assert.rejects(store.create({ ...input, image: huge }), /40 megapixels/);
+  const huge = await sharp({ create: { width: 10100, height: 10000, channels: 3, background: 'white' } }).png().toBuffer();
+  await assert.rejects(store.create({ ...input, image: huge }), /100 megapixels/);
   assert.throws(() => store.list({ limit: -1 }), /limit/);
   assert.equal(store.get(first.id).versionCount, 2);
   assert.equal(store.list().total, 1);
+  const second = await store.create({ ...input, title: 'Second' });
+  assert.deepEqual(store.neighbors(second.id), { previous: null, next: first.id });
+  assert.deepEqual(store.neighbors(first.id), { previous: second.id, next: null });
 });
 
 test('HTTP public browsing, admin sessions, CSRF protection, upload, restore, and downloads', async t => {

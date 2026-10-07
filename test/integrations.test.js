@@ -50,11 +50,15 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   assert.equal(store.get(wallpaper.id).versionCount, 1);
   await assert.rejects(store.revise(wallpaper.id, { expectedVersion: 1, title: 'Local edit' }), error => error.status === 409);
   assert.throws(() => store.restore(wallpaper.id, 1, { expectedVersion: 1 }), error => error.status === 409);
+  const described = store.describe(wallpaper.id, { expectedVersion: 1, description: 'Morning fog' });
+  assert.equal(described.latest.number, 2);
+  assert.throws(() => store.describe(wallpaper.id, { expectedVersion: 1, description: 'stale' }), /newer version/);
   files = { 'garden.png': imageB, 'new image.png': imageA }; revision = 2;
   const changed = await importer.sync(source.id);
   assert.equal(changed.report.updated, 1);
   assert.equal(changed.report.added, 1);
-  assert.equal(store.get(wallpaper.id).latest.number, 2);
+  assert.equal(store.get(wallpaper.id).latest.number, 3);
+  assert.equal(store.get(wallpaper.id).latest.description, 'Morning fog', 'mirror updates keep the local description');
   assert.equal(store.getVersion(wallpaper.id, 1).width, 32);
   files = { 'new image.png': imageA }; revision = 3;
   truncated = true;
@@ -68,9 +72,9 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   files['garden.png'] = imageB; revision = 4;
   await importer.sync(source.id);
   assert.equal(store.get(wallpaper.id).archived, false);
-  assert.equal(store.get(wallpaper.id).versionCount, 2);
+  assert.equal(store.get(wallpaper.id).versionCount, 3);
   store.detachImport(source.id);
-  await store.revise(wallpaper.id, { expectedVersion: 2, title: 'Independent now' });
+  await store.revise(wallpaper.id, { expectedVersion: 3, title: 'Independent now' });
   assert.equal(store.get(wallpaper.id).latest.title, 'Independent now');
   await assert.rejects(importer.sync(source.id), /independent copy/);
 
@@ -80,8 +84,18 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   assert.equal(partial.status, 'partial');
   assert.equal(partial.fileCount, 0);
   assert.match(partial.report.errors[0].error, /Git blob/);
+  assert.deepEqual(partial.report.failedPaths, ['corrupted.png']);
+  assert.throws(() => store.queueImport(source.id, { retry: true }), /independent copy/);
   invalidDownload = false;
-  assert.equal((await importer.sync(copy.id)).fileCount, 1);
+  files['extra.png'] = imageB;
+  store.queueImport(copy.id, { retry: true });
+  const before = downloads;
+  const retried = await importer.sync(copy.id);
+  assert.equal(downloads - before, 1, 'a retry downloads only the failed file');
+  assert.equal(retried.fileCount, 1);
+  assert.deepEqual(retried.report.failedPaths, []);
+  assert.throws(() => store.queueImport(copy.id, { retry: true }), /independent copy|no failed files/);
+  delete files['extra.png'];
   assert.equal(store.getImport(copy.id).status, 'synced');
   const leaseSource = store.addImport({ owner: 'example', repository: 'lease', mode: 'mirror' });
   assert.equal(store.claimImport(leaseSource.id, 'first-worker'), true);
@@ -90,8 +104,43 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   const db = new DatabaseSync(join(directory, 'wallkeep.sqlite'));
   db.prepare('UPDATE import_sources SET lease_until = 0 WHERE id = ?').run(leaseSource.id);
   db.close();
+  assert.throws(() => store.renewImport(leaseSource.id, 'first-worker'), /lease expired/);
   assert.ok(store.dueImports().includes(leaseSource.id));
   assert.equal(store.claimImport(leaseSource.id, 'recovered-worker'), true);
+  assert.throws(() => store.renewImport(leaseSource.id, 'first-worker'), /lease expired/);
+});
+
+test('large imports exceed 500 images and 500 MiB while renewing the worker lease', async t => {
+  const { store } = temporaryStore(t);
+  // A valid PNG with trailing padding crosses the actual download budget while sharing one disk blob.
+  const image = Buffer.alloc(1024 * 1024);
+  imageA.copy(image);
+  const sha = gitHash(image);
+  let now = Date.now(), downloads = 0;
+  t.mock.method(Date, 'now', () => now);
+  const source = store.addImport({ owner: 'example', repository: 'large', mode: 'mirror' });
+  const files = Array.from({ length: 501 }, (_, index) => ({ path: `${index}.png`, type: 'blob', mode: '100644', sha, size: image.length }));
+  const importer = new GitHubImporter({ store, fetcher: async url => {
+    if (url.includes('raw.githubusercontent.com')) {
+      // Simulate a long-running import without waiting in real time.
+      now += 20_000;
+      assert.equal(store.claimImport(source.id, 'competing-worker'), false);
+      downloads++;
+      return new Response(image);
+    }
+    if (/\/commits\//.test(url)) return Response.json({ sha: commit(1), commit: { tree: { sha: commit(9) } } });
+    if (/\/git\/trees\//.test(url)) return Response.json({ truncated: false, tree: files });
+    return Response.json({ private: false, default_branch: 'main' });
+  } });
+  const result = await importer.sync(source.id);
+  assert.equal(result.status, 'synced', JSON.stringify(result.report));
+  assert.equal(result.report.added, 501);
+  assert.equal(result.fileCount, 501);
+  assert.equal(downloads * image.length, 501 * 1024 * 1024);
+  assert.equal(store.list().total, 501);
+  const repeat = await importer.sync(source.id);
+  assert.equal(repeat.report.unchanged, 501);
+  assert.equal(downloads, 501, 'unchanged files must not download again');
 });
 
 test('GitHub URL validation prevents arbitrary hosts and supports folder URLs', () => {
@@ -137,6 +186,9 @@ test('email login, explicit multi-provider linking, ownership, admin access, and
     assert.equal(verified.status, 302);
     return { cookie: collectCookies(verified), path: `${url.pathname}${url.search}` };
   };
+  // Admin-token login from the request's own host works even when it differs from PUBLIC_URL.
+  const tokenLogin = await fetch(`${base}/api/session`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Wallkeep-Request': '1', Origin: base }, body: JSON.stringify({ token: adminToken }) });
+  assert.equal(tokenLogin.status, 200, await tokenLogin.text());
   const emailLogin = await sendLink('owner@example.test');
   cookies = emailLogin.cookie;
   let session = await (await request('/api/session')).json();

@@ -50,7 +50,7 @@
         <label><input type="radio" name="mode" value="mirror"><span><strong>Mirror GitHub</strong><small>Follow the branch automatically. Detach anytime to edit.</small></span></label>
       </fieldset>
       <label>Mirror check interval<select name="intervalMinutes"><option value="60">Every hour</option><option value="15">Every 15 minutes</option><option value="1440">Every day</option></select></label>
-      <p class="hint">Imports current JPEG, PNG, and WebP files from a public repository. Up to 500 images / 500 MiB per source. Git commit history is not imported.</p>
+      <p class="hint">Imports current JPEG, PNG, and WebP files from a public repository. No collection size or image count limit. Each image can be up to 25 MiB / 100 MP. Git commit history is not imported.</p>
       <p class="form-error" role="alert" hidden></p>
       <button class="button full" type="submit">Start import <span aria-hidden="true">↗</span></button>
     </form>
@@ -60,7 +60,7 @@
     <form id="upload-form">
       <div class="dialog-heading"><span class="eyebrow">MAKE ROOM FOR SOMETHING GOOD</span><button type="button" class="icon-button" data-close aria-label="Close upload">×</button></div>
       <h2 id="upload-title">Add a wallpaper.</h2>
-      <label class="file-picker"><span class="file-icon" aria-hidden="true">↑</span><strong id="file-label">Choose an image</strong><span class="hint">JPEG, PNG, or WebP · up to 25 MiB / 40 MP</span><input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>
+      <label class="file-picker"><span class="file-icon" aria-hidden="true">↑</span><strong id="file-label">Choose an image</strong><span class="hint">JPEG, PNG, or WebP · up to 25 MiB / 100 MP</span><input type="file" name="image" accept="image/jpeg,image/png,image/webp" required></label>
       <img id="upload-preview" class="upload-preview" alt="Selected upload preview" hidden>
       <label>Title<input name="title" maxlength="160" required placeholder="Give this wallpaper a name"></label>
       <label>Description <span class="optional">optional</span><textarea name="description" rows="2" maxlength="5000" placeholder="A little context behind the image…"></textarea></label>

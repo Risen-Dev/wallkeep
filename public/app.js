@@ -134,7 +134,7 @@ async function renderDetail(id) {
   historyOffset = history.items.length;
   document.title = `${v.title} · v${v.number} — Wallkeep`;
   $('#main').innerHTML = `<a class="back-link" href="/"><span aria-hidden="true">←</span> Back to the library</a>
-    <div class="detail-heading"><div><span class="eyebrow">FROM YOUR COLLECTION · VERSION ${v.number}</span><h1>${esc(v.title)}</h1></div><div class="detail-actions">${session.isAdmin && current.source?.mode !== 'mirror' ? '<button class="button secondary" data-action="revise">＋ New version</button>' : ''}<a class="button" href="${imageUrl(id, v.number, false)}?download" download>Download original <span aria-hidden="true">↓</span></a></div></div>
+    <div class="detail-heading"><div><span class="eyebrow">FROM YOUR COLLECTION · VERSION ${v.number}</span><h1>${esc(v.title)}</h1>${session.isAdmin && session.aiNaming && v.number === current.latest.number ? '<div id="name-suggestion"><button class="text-button" data-action="suggest-title">✨ Suggest a name with AI</button></div>' : ''}</div><div class="detail-actions">${session.isAdmin && current.source?.mode !== 'mirror' ? '<button class="button secondary" data-action="revise">＋ New version</button>' : ''}<a class="button" href="${imageUrl(id, v.number, false)}?download" download>Download original <span aria-hidden="true">↓</span></a></div></div>
     ${current.source ? `<div class="source-banner"><span>${current.archived ? 'Archived · removed upstream. History is preserved.' : current.source.mode === 'mirror' ? 'Mirrored from GitHub · local editing is locked.' : 'Independent copy imported from GitHub.'} <a href="${esc(current.source.url)}" target="_blank" rel="noreferrer">${esc(current.source.owner)}/${esc(current.source.repository)} ↗</a></span>${session.isAdmin ? '<a href="/imports">Manage source →</a>' : ''}</div>` : ''}
     ${v.number !== current.latest.number ? `<div class="old-version"><span>You’re viewing v${v.number}. The latest version is v${current.latest.number}.</span><a href="/wallpapers/${id}">View latest →</a></div>` : ''}
     <div class="detail-layout"><div><div class="image-stage"><img src="${imageUrl(id, v.number)}" alt="${esc(v.alt)}"></div><div class="image-caption"><span>${esc(v.alt || v.filename)}</span><span>${v.width} × ${v.height}</span></div>
@@ -217,6 +217,21 @@ $('#main').addEventListener('click', async event => {
     $('#description-input').focus();
   }
   if (button.dataset.action === 'cancel-description') await render();
+  if (button.dataset.action === 'suggest-title') {
+    const box = $('#name-suggestion');
+    button.disabled = true; button.textContent = 'Thinking of a name…';
+    try {
+      const { title } = await api(`/wallpapers/${current.id}/suggest-title`, { method: 'POST', body: {} });
+      box.innerHTML = `<p class="hint">Suggested name: <strong>${esc(title)}</strong></p><div class="card-actions"><button class="button small" data-action="use-title" data-title="${esc(title)}">Use this name</button><button class="button secondary small" data-action="suggest-title">Try another</button><button class="text-button" data-action="cancel-description">Dismiss</button></div>`;
+    } catch (error) { notice(error.message); button.disabled = false; button.textContent = '✨ Suggest a name with AI'; }
+  }
+  if (button.dataset.action === 'use-title') {
+    button.disabled = true;
+    try {
+      const item = await api(`/wallpapers/${current.id}/details`, { method: 'POST', body: { expectedVersion: current.latest.number, title: button.dataset.title } });
+      goToWallpaper(item, `Renamed to “${item.latest.title}”.`);
+    } catch (error) { notice(error.message); button.disabled = false; }
+  }
   if (button.dataset.action === 'refresh-imports') await renderImports().catch(error => notice(error.message));
   if (button.dataset.link || button.dataset.unlink || button.dataset.sync || button.dataset.retry || button.dataset.detach || button.dataset.files || ['signout', 'email-self'].includes(button.dataset.action)) {
     button.disabled = true;
@@ -343,7 +358,7 @@ $('#main').addEventListener('submit', async event => {
   const form = event.target;
   busy(form, true); formError(form);
   try {
-    const item = await api(`/wallpapers/${current.id}/description`, { method: 'POST', body: { expectedVersion: current.latest.number, description: form.elements.description.value } });
+    const item = await api(`/wallpapers/${current.id}/details`, { method: 'POST', body: { expectedVersion: current.latest.number, description: form.elements.description.value } });
     goToWallpaper(item, `Description saved as v${item.latest.number}.`);
   } catch (error) { formError(form, error.message); busy(form, false); }
 });

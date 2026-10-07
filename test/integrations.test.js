@@ -50,9 +50,10 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   assert.equal(store.get(wallpaper.id).versionCount, 1);
   await assert.rejects(store.revise(wallpaper.id, { expectedVersion: 1, title: 'Local edit' }), error => error.status === 409);
   assert.throws(() => store.restore(wallpaper.id, 1, { expectedVersion: 1 }), error => error.status === 409);
-  const described = store.describe(wallpaper.id, { expectedVersion: 1, description: 'Morning fog' });
+  const described = store.editDetails(wallpaper.id, { expectedVersion: 1, description: 'Morning fog' });
   assert.equal(described.latest.number, 2);
-  assert.throws(() => store.describe(wallpaper.id, { expectedVersion: 1, description: 'stale' }), /newer version/);
+  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 1, description: 'stale' }), /newer version/);
+  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 2 }), /title or description/);
   files = { 'garden.png': imageB, 'new image.png': imageA }; revision = 2;
   const changed = await importer.sync(source.id);
   assert.equal(changed.report.updated, 1);

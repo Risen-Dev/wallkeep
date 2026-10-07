@@ -38,6 +38,7 @@ Copy `.env.example` to `.env` and fill in the options you need. The CLI reads `.
 | `ADMIN_EMAILS` | Comma-separated admin email addresses; only matching verified emails qualify |
 | `AUTH_SECRET` | Random secret saved to `data/auth-secret` if unset; at least 32 characters |
 | `GITHUB_IMPORT_TOKEN` | Optional; increases the GitHub API quota and is separate from OAuth sign-in |
+| `ANTHROPIC_API_KEY` | Optional; enables the "Suggest a name with AI" button on wallpaper pages. The wallpaper preview is sent to the Claude API only when an admin clicks it |
 
 Use the same origin in your browser, `PUBLIC_URL`, and OAuth callback URLs. `localhost` and `127.0.0.1` are different origins. For public hosting, use an HTTPS reverse proxy and set `PUBLIC_URL=https://walls.example.com`; cookies will use `Secure`.
 

@@ -7,6 +7,7 @@ import { WallpaperStore } from './lib/store.js';
 import { createWallpaperServer } from './lib/server.js';
 import { createAccountService } from './lib/accounts.js';
 import { GitHubImporter } from './lib/github.js';
+import { createNamer } from './lib/naming.js';
 
 if (existsSync('.env')) loadEnvFile('.env');
 
@@ -32,7 +33,8 @@ const publicUrl = process.env.PUBLIC_URL || `http://127.0.0.1:${port}`;
 const accounts = await createAccountService({ directory, secret: localSecret('AUTH_SECRET', 'auth-secret'), baseURL: publicUrl });
 const store = new WallpaperStore({ directory });
 const importer = new GitHubImporter({ store, token: process.env.GITHUB_IMPORT_TOKEN });
-const server = createWallpaperServer({ store, adminToken, adminName: process.env.ADMIN_NAME || 'Admin', publicUrl, accounts, importer });
+const namer = process.env.ANTHROPIC_API_KEY ? createNamer() : null;
+const server = createWallpaperServer({ store, adminToken, adminName: process.env.ADMIN_NAME || 'Admin', publicUrl, accounts, importer, namer });
 server.on('error', async error => { console.error(error.message); await importer.stop(); accounts.close(); store.close(); process.exitCode = 1; });
 server.listen(port, host, () => { importer.start(); console.log(`Wallkeep is running at ${publicUrl}`); });
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {

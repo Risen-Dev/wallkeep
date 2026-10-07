@@ -38,7 +38,12 @@ Copy `.env.example` to `.env` and fill in the options you need. The CLI reads `.
 | `ADMIN_EMAILS` | Comma-separated admin email addresses; only matching verified emails qualify |
 | `AUTH_SECRET` | Random secret saved to `data/auth-secret` if unset; at least 32 characters |
 | `GITHUB_IMPORT_TOKEN` | Optional; increases the GitHub API quota and is separate from OAuth sign-in |
-| `ANTHROPIC_API_KEY` | Optional; enables the "Suggest a name with AI" button on wallpaper pages. The wallpaper preview is sent to the Claude API only when an admin clicks it |
+| `AI_NAMER` | Optional; `claude`, `codex`, or `9router` for the "Suggest a name with AI" button. Blank means Claude when `ANTHROPIC_API_KEY` is set, otherwise off. The preview is sent only when an admin clicks |
+| `ANTHROPIC_API_KEY` | Required for `AI_NAMER=claude` |
+| `CODEX_MODEL` | Optional model for `AI_NAMER=codex`. Codex mode runs the `codex` CLI installed and logged in (`codex login`) on the server machine, so it uses that ChatGPT plan; it does not work inside the Docker image |
+| `NINEROUTER_URL` | `http://localhost:20128/v1`; the 9router endpoint for `AI_NAMER=9router` |
+| `NINEROUTER_API_KEY` | Optional; sent as a Bearer token when your 9router requires an API key |
+| `NINEROUTER_MODEL` | Required for `AI_NAMER=9router`; a model or combo name from your 9router dashboard that accepts images |
 
 Use the same origin in your browser, `PUBLIC_URL`, and OAuth callback URLs. `localhost` and `127.0.0.1` are different origins. For public hosting, use an HTTPS reverse proxy and set `PUBLIC_URL=https://walls.example.com`; cookies will use `Secure`.
 

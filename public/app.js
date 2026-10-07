@@ -359,7 +359,7 @@ $('#main').addEventListener('submit', async event => {
   busy(form, true); formError(form);
   try {
     const item = await api(`/wallpapers/${current.id}/details`, { method: 'POST', body: { expectedVersion: current.latest.number, description: form.elements.description.value } });
-    goToWallpaper(item, `Description saved as v${item.latest.number}.`);
+    goToWallpaper(item, 'Description saved.');
   } catch (error) { formError(form, error.message); busy(form, false); }
 });
 

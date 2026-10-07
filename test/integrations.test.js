@@ -51,14 +51,16 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   await assert.rejects(store.revise(wallpaper.id, { expectedVersion: 1, title: 'Local edit' }), error => error.status === 409);
   assert.throws(() => store.restore(wallpaper.id, 1, { expectedVersion: 1 }), error => error.status === 409);
   const described = store.editDetails(wallpaper.id, { expectedVersion: 1, description: 'Morning fog' });
-  assert.equal(described.latest.number, 2);
-  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 1, description: 'stale' }), /newer version/);
-  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 2 }), /title or description/);
+  assert.equal(described.versionCount, 1, 'a description edit does not create a version');
+  assert.equal(described.latest.description, 'Morning fog');
+  assert.throws(() => new DatabaseSync(join(directory, 'wallkeep.sqlite')).exec(`UPDATE versions SET title = 'x'`), /immutable/);
+  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 2, description: 'stale' }), /newer version/);
+  assert.throws(() => store.editDetails(wallpaper.id, { expectedVersion: 1 }), /title or description/);
   files = { 'garden.png': imageB, 'new image.png': imageA }; revision = 2;
   const changed = await importer.sync(source.id);
   assert.equal(changed.report.updated, 1);
   assert.equal(changed.report.added, 1);
-  assert.equal(store.get(wallpaper.id).latest.number, 3);
+  assert.equal(store.get(wallpaper.id).latest.number, 2);
   assert.equal(store.get(wallpaper.id).latest.description, 'Morning fog', 'mirror updates keep the local description');
   assert.equal(store.getVersion(wallpaper.id, 1).width, 32);
   files = { 'new image.png': imageA }; revision = 3;
@@ -73,9 +75,9 @@ test('GitHub mirrors append changes, archive removals, preserve history, and det
   files['garden.png'] = imageB; revision = 4;
   await importer.sync(source.id);
   assert.equal(store.get(wallpaper.id).archived, false);
-  assert.equal(store.get(wallpaper.id).versionCount, 3);
+  assert.equal(store.get(wallpaper.id).versionCount, 2);
   store.detachImport(source.id);
-  await store.revise(wallpaper.id, { expectedVersion: 3, title: 'Independent now' });
+  await store.revise(wallpaper.id, { expectedVersion: 2, title: 'Independent now' });
   assert.equal(store.get(wallpaper.id).latest.title, 'Independent now');
   await assert.rejects(importer.sync(source.id), /independent copy/);
 

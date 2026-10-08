@@ -297,6 +297,7 @@ main {
   text-align:right;
 }
 .wallpaper-row {
+  position:relative;
   padding:23px 18px;
   border-bottom:1px solid var(--line);
   transition:background .15s;
@@ -304,6 +305,20 @@ main {
 }
 .wallpaper-row:hover {
   background:#eef2e9;
+}
+.row-link {
+  color:inherit;
+  text-decoration:none;
+}
+.row-link::after {
+  content:'';
+  position:absolute;
+  inset:0;
+}
+.push-button {
+  position:relative;
+  z-index:1;
+  margin-top:8px;
 }
 .wallpaper-title {
   font-family:var(--serif);

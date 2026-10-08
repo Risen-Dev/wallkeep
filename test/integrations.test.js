@@ -268,3 +268,51 @@ test('a stalled image download is aborted on shutdown and the import is re-queue
   assert.equal(result.status, 'queued');
   assert.equal(store.claimImport(source.id, 'next-start'), true, 'the lease was released');
 });
+
+test('uploads pushed to a mirror are committed once and not re-imported', async t => {
+  const { store } = temporaryStore(t);
+  const files = {};
+  let put;
+  const fetcher = async (url, options) => {
+    if (options.method === 'PUT') {
+      put = { url, ...options, body: JSON.parse(options.body) };
+      const path = decodeURIComponent(new URL(url).pathname.split('/contents/')[1]);
+      if (files[path]) return Response.json({}, { status: 422 });
+      files[path] = Buffer.from(put.body.content, 'base64');
+      return Response.json({ content: { sha: gitHash(files[path]) } }, { status: 201 });
+    }
+    if (url.includes('raw.githubusercontent.com')) throw new Error('pushed files must not be downloaded again');
+    if (/\/commits\//.test(url)) return Response.json({ sha: commit(1), commit: { tree: { sha: commit(9) } } });
+    if (/\/git\/trees\/\w+$/.test(url)) return Response.json({ tree: [{ path: 'walls', type: 'tree', sha: commit(8) }] });
+    if (/\/git\/trees\//.test(url)) return Response.json({ tree: Object.entries(files).map(([path, data]) => ({ path: path.replace(/^walls\//, ''), type: 'blob', mode: '100644', sha: gitHash(data), size: data.length })) });
+    return Response.json({ private: false, default_branch: 'main' });
+  };
+  const source = store.addImport({ owner: 'example', repository: 'wallpapers', folder: 'walls', mode: 'mirror' });
+  const copy = store.addImport({ owner: 'example', repository: 'other', mode: 'copy' });
+  const wallpaper = await store.create({ image: imageA, filename: 'Garden.png', title: 'Garden' });
+  await assert.rejects(new GitHubImporter({ store, fetcher }).push(source.id, wallpaper.id), error => error.status === 503);
+  const importer = new GitHubImporter({ store, fetcher, pushToken: 'push-token' });
+  await assert.rejects(importer.push(copy.id, wallpaper.id), error => error.status === 409);
+  assert.equal(await importer.push(source.id, wallpaper.id), 'walls/Garden.png');
+  assert.equal(put.headers.Authorization, 'Bearer push-token');
+  assert.equal(put.url, 'https://api.github.com/repos/example/wallpapers/contents/walls/Garden.png');
+  assert.equal(store.get(wallpaper.id).source.mode, 'mirror');
+  const synced = await importer.sync(source.id);
+  assert.equal(synced.report.unchanged, 1);
+  assert.equal(store.list().total, 1, 'a pushed upload is not imported twice');
+  const twin = await store.create({ image: imageB, filename: 'Garden.png', title: 'Twin' });
+  await assert.rejects(importer.push(source.id, twin.id), /already exists/);
+
+  const adminToken = 'p'.repeat(32);
+  const server = createWallpaperServer({ store, importer, adminToken });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const pushRoute = id => fetch(`http://127.0.0.1:${server.address().port}/api/wallpapers/${id}/push`, {
+    method: 'POST', headers: { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceId: source.id }),
+  });
+  const local = await store.create({ image: imageB, filename: 'Lake.png', title: 'Lake' });
+  const pushed = await pushRoute(local.id);
+  assert.equal(pushed.status, 200);
+  assert.equal((await pushed.json()).source.path, 'walls/Lake.png');
+  assert.equal((await pushRoute(local.id)).status, 409, 'a wallpaper from GitHub is not pushed again');
+});

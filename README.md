@@ -1,6 +1,6 @@
 # Wallkeep
 
-A self-hosted wallpaper gallery and Node.js library. Every wallpaper has a permanent URL, immutable versions, and restorable history. Import collections from GitHub as an **independent copy** or a **one-way mirror**. One account can connect to Google, GitHub, Apple, and email sign-in.
+A self-hosted wallpaper gallery and Node.js library. Every wallpaper has a permanent URL, immutable versions, and restorable history. Import collections from GitHub as an **independent copy** or a **mirror**, and optionally push new uploads back into a mirror. One account can connect to Google, GitHub, Apple, and email sign-in.
 
 The project name is provisional. The package has not been published to npm.
 
@@ -38,6 +38,7 @@ Copy `.env.example` to `.env` and fill in the options you need. The CLI reads `.
 | `ADMIN_EMAILS` | Comma-separated admin email addresses; only matching verified emails qualify |
 | `AUTH_SECRET` | Random secret saved to `data/auth-secret` if unset; at least 32 characters |
 | `GITHUB_IMPORT_TOKEN` | Optional; increases the GitHub API quota and is separate from OAuth sign-in |
+| `GITHUB_PUSH_TOKEN` | Optional; a fine-grained token with **Contents: read and write** on your mirrored repositories. Enables pushing new uploads to GitHub |
 | `AI_NAMER` | Optional; `claude`, `codex`, or `9router` for the "Suggest a name with AI" button. Blank means Claude when `ANTHROPIC_API_KEY` is set, otherwise off. The preview is sent only when an admin clicks |
 | `ANTHROPIC_API_KEY` | Required for `AI_NAMER=claude` |
 | `CODEX_MODEL` | Optional model for `AI_NAMER=codex`. Codex mode runs the `codex` CLI installed and logged in (`codex login`) on the server machine, so it uses that ChatGPT plan; it does not work inside the Docker image |
@@ -85,6 +86,12 @@ https://github.com/owner/wallpapers/tree/main/nature
 - When an image disappears from a complete upstream snapshot, Wallkeep **archives it**. Open **View archived** to find it; all versions remain downloadable. If the same path reappears, the image becomes active again.
 - If GitHub returns a truncated listing, a request times out, or an image fails to process, Wallkeep does not archive files based on incomplete results. Successfully imported files are kept, and the status reports the failures.
 - Retries use paths and hashes to avoid duplicate wallpapers. An independent copy retries the original pinned commit; a mirror uses the latest branch head.
+
+### Push uploads back to a mirror
+
+With `GITHUB_PUSH_TOKEN` set, **Add wallpaper** shows **Also push to GitHub** with your mirrored repositories. The original file is committed to the mirror's branch and folder as `<file name>.<format>`, and the wallpaper becomes part of that mirror, so the next sync counts it as unchanged instead of importing it twice. If GitHub refuses the push (no write access, or a file with the same name already exists), the upload is still kept in Wallkeep and the reason is shown.
+
+Only new uploads are pushed. New versions, renames, and deletions still flow one way, from GitHub into Wallkeep.
 
 ### Import limits
 

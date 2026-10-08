@@ -75,23 +75,55 @@ function openUpload(item = null) {
   $('#upload-title').textContent = item ? 'The next chapter.' : 'Add a wallpaper.';
   $('#upload-submit').textContent = item ? `Save version ${item.latest.number + 1} ↗` : 'Add to library ↗';
   $('#file-label').textContent = item ? 'Choose a new image (optional)' : 'Choose an image';
-  $('#upload-hint').textContent = item ? `Saving creates v${item.latest.number + 1}. Leave the image unchanged to update only its details.` : 'Your original file will be preserved. This becomes version 1.';
+  $('#upload-hint').textContent = item ? `Saving creates v${item.latest.number + 1}. Leave the image unchanged to update only its details.` : 'Your original file will be preserved. Select several images to add them all at once.';
   form.elements.image.required = !item;
+  form.elements.image.multiple = !item;
+  form.elements.title.required = true;
+  form.elements.title.closest('label').hidden = false;
   for (const key of ['title', 'description', 'alt']) form.elements[key].value = item?.latest[key] ?? '';
   form.elements.message.value = item ? '' : 'Initial upload';
   $('#upload-preview').hidden = true;
+  form.elements.pushTo.length = 1;
+  $('#push-field').hidden = true;
+  if (!item && session.githubPush) mirrorOptions(form.elements.pushTo).then(count => { $('#push-field').hidden = !count; }).catch(() => {});
   $('#upload-dialog').showModal();
 }
 
 function row(item) {
   const v = item.latest;
-  return `<a class="wallpaper-row" href="/wallpapers/${item.id}" aria-label="${esc(v.title)}, ${item.versionCount} versions">
-    <div class="wallpaper-info"><h2 class="wallpaper-title">${esc(v.title)}<span class="version-badge">v${v.number}</span></h2><span class="filename">${esc(v.filename)}</span></div>
+  // The title link stretches over the whole row, so the row can also hold a button.
+  return `<div class="wallpaper-row">
+    <div class="wallpaper-info"><h2 class="wallpaper-title"><a class="row-link" href="/wallpapers/${item.id}" aria-label="${esc(v.title)}, ${item.versionCount} versions">${esc(v.title)}</a><span class="version-badge">v${v.number}</span></h2><span class="filename">${esc(v.filename)}</span>${pushButton(item)}</div>
     <span class="resolution">${v.width} × ${v.height}<small>${v.width > v.height ? 'Landscape' : v.width === v.height ? 'Square' : 'Portrait'}</small></span>
     <span class="file-size">${size(v.size)}</span><span class="updated">${date(v.createdAt)}<small>${item.versionCount} version${item.versionCount === 1 ? '' : 's'} kept</small></span>
     <span class="author"><span class="avatar" aria-hidden="true">${esc(v.author[0]?.toUpperCase())}</span>${esc(v.author)}</span>
     <img class="row-preview" src="${imageUrl(item.id, v.number)}" alt="" loading="lazy">
-  </a>`;
+  </div>`;
+}
+
+const pushButton = item => session.isAdmin && session.githubPush && !item.source ? `<button class="text-button push-button" data-push="${item.id}">↑ Push to GitHub</button>` : '';
+
+async function mirrorOptions(select) {
+  select.length = 1;
+  const { items } = await api('/imports');
+  for (const source of items.filter(source => source.mode === 'mirror')) select.add(new Option(`${source.owner}/${source.repository}${source.folder ? `/${source.folder}` : ''}`, source.id));
+  return select.length - 1;
+}
+
+async function push(id, sourceId) {
+  const item = await api(`/wallpapers/${id}/push`, { method: 'POST', body: { sourceId } });
+  notice(`Pushed to ${item.source.owner}/${item.source.repository}.`);
+  await render();
+}
+
+async function choosePush(id) {
+  const select = $('#push-form').elements.pushTo;
+  const count = await mirrorOptions(select);
+  if (!count) return notice('Import a repository as a mirror first, then push wallpapers to it.');
+  if (count === 1) return push(id, select.options[1].value);
+  $('#push-form').dataset.id = id;
+  formError($('#push-form'));
+  $('#push-dialog').showModal();
 }
 
 function pageLink(offset) {
@@ -134,7 +166,7 @@ async function renderDetail(id) {
   historyOffset = history.items.length;
   document.title = `${v.title} · v${v.number} — Wallkeep`;
   $('#main').innerHTML = `<a class="back-link" href="/"><span aria-hidden="true">←</span> Back to the library</a>
-    <div class="detail-heading"><div><span class="eyebrow">FROM YOUR COLLECTION · VERSION ${v.number}</span><h1>${esc(v.title)}</h1>${session.isAdmin && session.aiNaming && v.number === current.latest.number ? '<div id="name-suggestion"><button class="text-button" data-action="suggest-title">✨ Suggest a name with AI</button></div>' : ''}</div><div class="detail-actions">${session.isAdmin && current.source?.mode !== 'mirror' ? '<button class="button secondary" data-action="revise">＋ New version</button>' : ''}<a class="button" href="${imageUrl(id, v.number, false)}?download" download>Download original <span aria-hidden="true">↓</span></a></div></div>
+    <div class="detail-heading"><div><span class="eyebrow">FROM YOUR COLLECTION · VERSION ${v.number}</span><h1>${esc(v.title)}</h1>${session.isAdmin && session.aiNaming && v.number === current.latest.number ? '<div id="name-suggestion"><button class="text-button" data-action="suggest-title">✨ Suggest a name with AI</button></div>' : ''}</div><div class="detail-actions">${pushButton(current).replace('text-button push-button', 'button secondary')}${session.isAdmin && current.source?.mode !== 'mirror' ? '<button class="button secondary" data-action="revise">＋ New version</button>' : ''}<a class="button" href="${imageUrl(id, v.number, false)}?download" download>Download original <span aria-hidden="true">↓</span></a></div></div>
     ${current.source ? `<div class="source-banner"><span>${current.archived ? 'Archived · removed upstream. History is preserved.' : current.source.mode === 'mirror' ? 'Mirrored from GitHub · local editing is locked.' : 'Independent copy imported from GitHub.'} <a href="${esc(current.source.url)}" target="_blank" rel="noreferrer">${esc(current.source.owner)}/${esc(current.source.repository)} ↗</a></span>${session.isAdmin ? '<a href="/imports">Manage source →</a>' : ''}</div>` : ''}
     ${v.number !== current.latest.number ? `<div class="old-version"><span>You’re viewing v${v.number}. The latest version is v${current.latest.number}.</span><a href="/wallpapers/${id}">View latest →</a></div>` : ''}
     <div class="detail-layout"><div><div class="image-stage"><img src="${imageUrl(id, v.number)}" alt="${esc(v.alt)}"></div><div class="image-caption"><span>${esc(v.alt || v.filename)}</span><span>${v.width} × ${v.height}</span></div>
@@ -208,6 +240,10 @@ $('#main').addEventListener('click', async event => {
     const url = new URL(location.href);
     url.searchParams.set('view', view);
     location.assign(url);
+  }
+  if (button.dataset.push) {
+    button.disabled = true;
+    try { await choosePush(button.dataset.push); } catch (error) { notice(error.message); } finally { button.disabled = false; }
   }
   if (button.dataset.action === 'upload') asAdmin(() => openUpload());
   if (button.dataset.action === 'import') asAdmin(() => { formError($('#import-form')); $('#import-dialog').showModal(); });
@@ -383,35 +419,76 @@ $('#login-form').addEventListener('submit', async event => {
   finally { busy(form, false); }
 });
 
+const titleOf = file => file.name.replace(/\.[^.]*$/, '').replace(/[-_]/g, ' ').slice(0, 160);
+
 $('#upload-form').elements.image.addEventListener('change', event => {
-  const file = event.target.files[0];
+  const files = [...event.target.files], [file] = files;
+  const title = $('#upload-form').elements.title;
   if (objectUrl) URL.revokeObjectURL(objectUrl);
-  $('#upload-preview').hidden = !file;
+  // Several files take their titles from their file names.
+  title.required = files.length < 2;
+  title.closest('label').hidden = files.length > 1;
+  $('#upload-preview').hidden = files.length !== 1;
   if (!file) return;
-  $('#file-label').textContent = file.name;
-  if (file.size > 25 * 1024 * 1024) {
+  $('#file-label').textContent = files.length > 1 ? `${files.length} images selected` : file.name;
+  if (files.some(f => f.size > 25 * 1024 * 1024)) {
     event.target.value = '';
     $('#upload-preview').hidden = true;
-    return formError($('#upload-form'), 'Choose an image smaller than 25 MiB.');
+    return formError($('#upload-form'), 'Choose images smaller than 25 MiB each.');
   }
   formError($('#upload-form'));
+  if (files.length > 1) return;
   objectUrl = URL.createObjectURL(file);
   $('#upload-preview').src = objectUrl;
-  const title = $('#upload-form').elements.title;
-  if (!title.value) title.value = file.name.replace(/\.[^.]*$/, '').replace(/[-_]/g, ' ').slice(0, 160);
+  if (!title.value) title.value = titleOf(file);
 });
+
+async function uploadMany(form, files) {
+  const submit = $('#upload-submit'), label = submit.textContent, failed = [];
+  let pushFailed = 0;
+  try {
+    // One at a time: the server decodes at most two uploads at once.
+    for (const [index, file] of files.entries()) {
+      submit.textContent = `Adding ${index + 1} of ${files.length}…`;
+      const data = new FormData(form);
+      data.set('image', file);
+      data.set('title', titleOf(file) || 'Wallpaper');
+      if (!String(data.get('alt')).trim()) data.set('alt', data.get('title'));
+      try { if ((await api('/wallpapers', { method: 'POST', body: data })).pushError) pushFailed++; }
+      catch (error) { failed.push(`${file.name}: ${error.message}`); }
+    }
+  } finally { submit.textContent = label; }
+  const added = files.length - failed.length;
+  if (!added) return formError(form, failed.join('; '));
+  try { sessionStorage.setItem('wallkeep-notice', `Added ${added} of ${files.length} wallpapers.${pushFailed ? ` ${pushFailed} not pushed to GitHub.` : ''}${failed.length ? ` Failed: ${failed.join('; ')}` : ''}`); } catch { /* Storage is optional. */ }
+  location.assign('/');
+}
 
 $('#upload-form').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget;
+  const files = [...form.elements.image.files];
+  if (!editing && files.length > 1) {
+    busy(form, true); formError(form);
+    try { return await uploadMany(form, files); } finally { busy(form, false); }
+  }
   const data = new FormData(form);
   if (editing) data.set('expectedVersion', editing.latest.number);
   if (!String(data.get('alt')).trim()) data.set('alt', data.get('title'));
   busy(form, true); formError(form);
   try {
     const item = await api(editing ? `/wallpapers/${editing.id}/versions` : '/wallpapers', { method: 'POST', body: data });
-    goToWallpaper(item, `Version ${item.latest.number} saved. A little history, kept.`);
+    goToWallpaper(item, item.pushError ? `Saved in Wallkeep, but not pushed to GitHub: ${item.pushError}` : item.source ? `Saved and pushed to ${item.source.owner}/${item.source.repository}.` : `Version ${item.latest.number} saved. A little history, kept.`);
   } catch (error) { formError(form, error.message); }
+  finally { busy(form, false); }
+});
+
+$('#push-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  busy(form, true); formError(form);
+  try { await push(form.dataset.id, form.elements.pushTo.value); $('#push-dialog').close(); }
+  catch (error) { formError(form, error.message); }
   finally { busy(form, false); }
 });
 

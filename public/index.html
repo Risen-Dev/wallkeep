@@ -66,9 +66,21 @@
       <label>Description <span class="optional">optional</span><textarea name="description" rows="2" maxlength="5000" placeholder="A little context behind the image…"></textarea></label>
       <label>Alt text<input name="alt" maxlength="500" placeholder="Describe the image for someone who can’t see it"></label>
       <label>Change note<input name="message" maxlength="500" placeholder="What changed in this version?"></label>
+      <label id="push-field" hidden>Also push to GitHub <span class="optional">optional</span><select name="pushTo"><option value="">Keep in Wallkeep only</option></select></label>
       <p class="hint" id="upload-hint">Your original file will be preserved. This becomes version 1.</p>
       <p class="form-error" role="alert" hidden></p>
       <button class="button full" type="submit" id="upload-submit">Add to library <span aria-hidden="true">↗</span></button>
+    </form>
+  </dialog>
+
+  <dialog id="push-dialog" aria-labelledby="push-title">
+    <form id="push-form">
+      <div class="dialog-heading"><span class="eyebrow">SEND IT HOME</span><button type="button" class="icon-button" data-close aria-label="Cancel push">×</button></div>
+      <h2 id="push-title">Push to which repository?</h2>
+      <p class="muted">The original is committed to the mirror, and the wallpaper then follows that repository.</p>
+      <label>Repository<select name="pushTo" required><option value="">Choose a mirror</option></select></label>
+      <p class="form-error" role="alert" hidden></p>
+      <button class="button full" type="submit">Push to GitHub <span aria-hidden="true">↑</span></button>
     </form>
   </dialog>
 

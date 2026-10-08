@@ -32,7 +32,7 @@ if (!process.env.ADMIN_TOKEN) console.log(`Admin token saved in ${join(directory
 const publicUrl = process.env.PUBLIC_URL || `http://127.0.0.1:${port}`;
 const accounts = await createAccountService({ directory, secret: localSecret('AUTH_SECRET', 'auth-secret'), baseURL: publicUrl });
 const store = new WallpaperStore({ directory });
-const importer = new GitHubImporter({ store, token: process.env.GITHUB_IMPORT_TOKEN });
+const importer = new GitHubImporter({ store, token: process.env.GITHUB_IMPORT_TOKEN, pushToken: process.env.GITHUB_PUSH_TOKEN });
 const aiNamer = process.env.AI_NAMER || (process.env.ANTHROPIC_API_KEY ? 'claude' : '');
 const namers = {
   claude: () => createNamer(),
